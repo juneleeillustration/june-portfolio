@@ -1,16 +1,16 @@
 ---
-import BaseLayout from "~/layouts/BaseLayout.astro";
 import { sanityClient } from "sanity:client";
+import BaseLayout from "~/layouts/BaseLayout.astro";
 import { urlFor } from "~/lib/sanity-image";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";
 
 type Photo = {
-    _id: string;
-    alt: string;
-    caption?: string;
-    width: number;
-    height: number;
-    image: { asset: { _ref: string } };
+  _id: string;
+  alt: string;
+  caption?: string;
+  width: number;
+  height: number;
+  image: { asset: { _ref: string } };
 };
 
 const photos: Photo[] = await sanityClient.fetch(`
