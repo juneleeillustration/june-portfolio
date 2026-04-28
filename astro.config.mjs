@@ -1,7 +1,7 @@
-import { defineConfig } from "astro/config";
-import sanity from "@sanity/astro";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
+import sanity from "@sanity/astro";
+import { defineConfig } from "astro/config";
 import "dotenv/config";
 
 const projectId = process.env.PUBLIC_SANITY_PROJECT_ID;
