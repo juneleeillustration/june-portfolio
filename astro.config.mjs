@@ -1,21 +1,24 @@
+import { defineConfig } from "astro/config";
+import sanity from "@sanity/astro";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
-import sanity from "@sanity/astro";
-import { defineConfig } from "astro/config";
-import { loadEnv } from "vite";
+import "dotenv/config";
 
-const { PUBLIC_SANITY_PROJECT_ID, PUBLIC_SANITY_DATASET } = loadEnv(
-  process.env.NODE_ENV,
-  process.cwd(),
-  "",
-);
+const projectId = process.env.PUBLIC_SANITY_PROJECT_ID;
+const dataset = process.env.PUBLIC_SANITY_DATASET;
+
+if (!projectId || !dataset) {
+  throw new Error(
+    `Missing Sanity env vars at config time. projectId=${projectId} dataset=${dataset}`,
+  );
+}
 
 export default defineConfig({
-  site: "https://yoursite.com",
+  site: "https://junelee.art",
   integrations: [
     sanity({
-      projectId: PUBLIC_SANITY_PROJECT_ID,
-      dataset: PUBLIC_SANITY_DATASET,
+      projectId,
+      dataset,
       useCdn: true,
       apiVersion: "2026-03-01",
       studioBasePath: "/studio",
