@@ -19,6 +19,7 @@
     "@astrojs/check": "^0.9.8",
     "@astrojs/react": "^5.0.4",
     "@astrojs/sitemap": "^3.7.2",
+    "@base-ui/react": "^1.4.1",
     "@fancyapps/ui": "^6.1.13",
     "@sanity/astro": "^3.3.1",
     "@sanity/client": "^7.22.0",
