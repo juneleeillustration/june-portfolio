@@ -1,2 +1,4 @@
 import photo from "./photo";
-export const schemaTypes = [photo];
+import section from "./section";
+import settings from "./settings";
+export const schemaTypes = [settings, section, photo];

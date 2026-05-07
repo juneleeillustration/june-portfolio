@@ -4,61 +4,264 @@ import BaseLayout from "~/layouts/BaseLayout.astro";
 import { urlFor } from "~/lib/sanity-image";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";
 
-type Photo = {
-  _id: string;
-  alt: string;
-  caption?: string;
-  width: number;
-  height: number;
-  image: { asset: { _ref: string } };
+type ImageMedia = {
+    _id: string;
+    mediaType: "image";
+    alt: string;
+    caption?: string;
+    width: number;
+    height: number;
+    extension: string;
+    originalUrl: string;
+    image: { asset: { _ref: string } };
 };
 
-const photos: Photo[] = await sanityClient.fetch(`
-  *[_type == "photo" && defined(image)] | order(order asc, _createdAt desc) {
+type VideoMedia = {
+    _id: string;
+    mediaType: "video";
+    alt: string;
+    caption?: string;
+    width: number;
+    height: number;
+    videoUrl: string;
+    videoMimeType?: string;
+    posterUrl?: string;
+    videoPoster?: { asset: { _ref: string } };
+};
+
+type Media = ImageMedia | VideoMedia;
+
+type Section = {
+    _id: string;
+    title: string;
+    backgroundColor?: { hex: string };
+    titleColor?: { hex: string };
+    photos: (Media | null)[];
+};
+
+const settings = await sanityClient.fetch<{ siteName?: string }>(`
+  *[_type == "settings" && _id == "settings"][0] { siteName }
+`);
+
+const siteName: string = settings?.siteName || "Site Name";
+
+const sections: Section[] = await sanityClient.fetch(`
+  *[_type == "section"] | order(orderRank asc, _createdAt desc) {
     _id,
-    alt,
-    caption,
-    "width": image.asset->metadata.dimensions.width,
-    "height": image.asset->metadata.dimensions.height,
-    image
+    title,
+    backgroundColor,
+    titleColor,
+    "photos": photos[]->{
+      _id,
+      "mediaType": coalesce(mediaType, "image"),
+      alt,
+      caption,
+      coalesce(mediaType, "image") == "image" => {
+        "width": image.asset->metadata.dimensions.width,
+        "height": image.asset->metadata.dimensions.height,
+        "extension": image.asset->extension,
+        "originalUrl": image.asset->url,
+        image
+      },
+      mediaType == "video" => {
+        "width": coalesce(aspectWidth, 16),
+        "height": coalesce(aspectHeight, 9),
+        "videoUrl": video.asset->url,
+        "videoMimeType": video.asset->mimeType,
+        "posterUrl": videoPoster.asset->url,
+        videoPoster
+      }
+    }
   }
 `);
+
+// Pick a readable foreground color for a given background hex.
+function readableTextColor(hex?: string): string {
+    if (!hex) return "#111111";
+    const normalized = hex.replace("#", "").trim();
+    const value =
+        normalized.length === 3
+            ? normalized
+                  .split("")
+                  .map((c) => c + c)
+                  .join("")
+            : normalized;
+    if (value.length !== 6) return "#111111";
+    const r = Number.parseInt(value.slice(0, 2), 16) / 255;
+    const g = Number.parseInt(value.slice(2, 4), 16) / 255;
+    const b = Number.parseInt(value.slice(4, 6), 16) / 255;
+    const channel = (c: number) =>
+        c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    const luminance =
+        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    return luminance > 0.5 ? "#111111" : "#ffffff";
+}
+
+// Sanity's image pipeline can flatten animated formats — serve the original
+// asset URL for these so animation is preserved.
+const ANIMATED_EXTENSIONS = new Set(["gif", "webp"]);
+
+function isValidMedia(p: Media | null): p is Media {
+    if (!p) return false;
+    if (p.mediaType === "image") return Boolean(p.image);
+    if (p.mediaType === "video") return Boolean(p.videoUrl);
+    return false;
+}
+
+function sectionAnchor(id: string) {
+    return `section-${id}`;
+}
 ---
 
 <BaseLayout
-    title="Astro Photo Grid"
+    title={siteName}
     description="A minimal, single-page photo gallery for Astro."
+    siteName={siteName}
 >
-    <section class="justified-gallery" id="photoswipe">
-        {
-            photos.map((photo, index) => {
-                const style = `--width: ${photo.width}; --height: ${photo.height};`;
-                const fullSrc = urlFor(photo.image).width(2400).url();
-                const thumbSrc = urlFor(photo.image)
-                    .height(400)
-                    .auto("format")
-                    .url();
-                return (
-                    <a
-                        style={style}
-                        href={fullSrc}
-                        target="_blank"
-                        data-fancybox="gallery"
-                        data-caption={photo.caption || photo.alt}
-                    >
-                        <img
-                            src={thumbSrc}
-                            alt={photo.alt}
-                            width={photo.width}
-                            height={photo.height}
-                            loading={index < 20 ? "eager" : "lazy"}
-                            decoding="async"
-                        />
-                    </a>
-                );
-            })
-        }
-    </section>
+    <div class="min-h-screen lg:grid lg:grid-cols-[16rem_1fr]">
+        <aside class="p-4 lg:sticky lg:top-0 lg:self-start lg:h-screen lg:p-6">
+            <div class="mb-3">
+                <h1
+                    class="text-base font-semibold tracking-tight text-zinc-900 dark:text-white"
+                >
+                    {siteName}
+                </h1>
+            </div>
+            <nav
+                aria-label="Sections"
+                class="rounded-md bg-white/80 dark:bg-zinc-900/80 backdrop-blur ring-1 ring-black/5 dark:ring-white/10 p-3"
+            >
+                <ul class="flex flex-col gap-1">
+                    {
+                        sections.map((section) => (
+                            <li>
+                                <a
+                                    href={`#${sectionAnchor(section._id)}`}
+                                    class="block px-3 py-2 text-sm font-normal text-zinc-400 dark:text-zinc-500 transition hover:text-zinc-600 dark:hover:text-zinc-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 data-[active=true]:font-medium data-[active=true]:text-zinc-900 dark:data-[active=true]:text-white"
+                                    data-section-link={section._id}
+                                >
+                                    {section.title}
+                                </a>
+                            </li>
+                        ))
+                    }
+                </ul>
+            </nav>
+        </aside>
+
+        <main class="min-w-0">
+            {
+                sections.map((section) => {
+                    const bg = section.backgroundColor?.hex;
+                    const fg = section.titleColor?.hex ?? readableTextColor(bg);
+                    const sectionStyle = [
+                        bg ? `--section-bg: ${bg};` : "",
+                        `--section-fg: ${fg};`,
+                    ].join(" ");
+
+                    return (
+                        <section
+                            id={sectionAnchor(section._id)}
+                            class="photo-section scroll-mt-0"
+                            style={sectionStyle}
+                            aria-labelledby={`heading-${section._id}`}
+                            data-section-target={section._id}
+                        >
+                            <h2
+                                id={`heading-${section._id}`}
+                                class="photo-section__title text-xl sm:text-2xl font-semibold tracking-tight"
+                            >
+                                {section.title}
+                            </h2>
+                            <div class="justified-gallery">
+                                {section.photos
+                                    ?.filter(isValidMedia)
+                                    .map((item, index) => {
+                                        const width = item.width || 1;
+                                        const height = item.height || 1;
+                                        const tileStyle = `--width: ${width}; --height: ${height};`;
+                                        const caption =
+                                            item.caption || item.alt;
+
+                                        if (item.mediaType === "video") {
+                                            return (
+                                                <a
+                                                    style={tileStyle}
+                                                    href={item.videoUrl}
+                                                    target="_blank"
+                                                    data-fancybox={`gallery-${section._id}`}
+                                                    data-type="video"
+                                                    data-caption={caption}
+                                                >
+                                                    <video
+                                                        src={item.videoUrl}
+                                                        poster={item.posterUrl}
+                                                        width={width}
+                                                        height={height}
+                                                        muted
+                                                        loop
+                                                        autoplay
+                                                        playsinline
+                                                        preload={
+                                                            index < 6
+                                                                ? "metadata"
+                                                                : "none"
+                                                        }
+                                                        aria-label={item.alt}
+                                                    >
+                                                        <track kind="captions" />
+                                                    </video>
+                                                </a>
+                                            );
+                                        }
+
+                                        const isAnimated =
+                                            ANIMATED_EXTENSIONS.has(
+                                                item.extension,
+                                            );
+
+                                        const fullSrc = isAnimated
+                                            ? item.originalUrl
+                                            : urlFor(item.image)
+                                                  .width(2400)
+                                                  .url();
+                                        const thumbSrc = isAnimated
+                                            ? item.originalUrl
+                                            : urlFor(item.image)
+                                                  .height(400)
+                                                  .auto("format")
+                                                  .url();
+
+                                        return (
+                                            <a
+                                                style={tileStyle}
+                                                href={fullSrc}
+                                                target="_blank"
+                                                data-fancybox={`gallery-${section._id}`}
+                                                data-caption={caption}
+                                            >
+                                                <img
+                                                    src={thumbSrc}
+                                                    alt={item.alt}
+                                                    width={width}
+                                                    height={height}
+                                                    loading={
+                                                        index < 20
+                                                            ? "eager"
+                                                            : "lazy"
+                                                    }
+                                                    decoding="async"
+                                                />
+                                            </a>
+                                        );
+                                    })}
+                            </div>
+                        </section>
+                    );
+                })
+            }
+        </main>
+    </div>
 </BaseLayout>
 
 <script>
@@ -84,15 +287,66 @@ const photos: Photo[] = await sanityClient.fetch(`
             transition: "slide",
         },
     });
+
+    // Highlight the currently visible section in the side menu.
+    const links = document.querySelectorAll<HTMLAnchorElement>(
+        "[data-section-link]",
+    );
+    const targets = document.querySelectorAll<HTMLElement>(
+        "[data-section-target]",
+    );
+
+    if (links.length && targets.length) {
+        const linkById = new Map<string, HTMLAnchorElement>();
+        for (const link of links) {
+            const id = link.dataset.sectionLink;
+            if (id) linkById.set(id, link);
+        }
+
+        const setActive = (id: string) => {
+            for (const link of links) {
+                link.dataset.active =
+                    link.dataset.sectionLink === id ? "true" : "false";
+            }
+        };
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const visible = entries
+                    .filter((e) => e.isIntersecting)
+                    .sort(
+                        (a, b) => b.intersectionRatio - a.intersectionRatio,
+                    )[0];
+                if (visible) {
+                    const id = (visible.target as HTMLElement).dataset
+                        .sectionTarget;
+                    if (id) setActive(id);
+                }
+            },
+            { rootMargin: "-30% 0px -60% 0px", threshold: [0, 0.25, 0.5, 1] },
+        );
+
+        for (const target of targets) observer.observe(target);
+    }
 </script>
 
 <style>
+    .photo-section {
+        --gutter: clamp(16px, 2.5vw, 48px);
+        background-color: var(--section-bg, transparent);
+        color: var(--section-fg, inherit);
+    }
+
+    .photo-section__title {
+        color: var(--section-fg, inherit);
+        padding: var(--gutter) var(--gutter) calc(var(--gutter) / 2);
+    }
+
     .justified-gallery {
-        --padding: max(2.5vw, 12px);
-        --space: max(2.5vw, 12px);
+        --space: clamp(10px, 1.5vw, 32px);
         --min-height: clamp(200px, 20vw, 400px);
 
-        padding: var(--padding);
+        padding: 0 var(--gutter) var(--gutter);
         display: flex;
         flex-wrap: wrap;
         gap: var(--space);
@@ -106,9 +360,11 @@ const photos: Photo[] = await sanityClient.fetch(`
             overflow: hidden;
             opacity: 1;
             transition: all 0.05s ease-in-out;
+            position: relative;
         }
 
-        a img {
+        a img,
+        a video {
             display: block;
             object-fit: cover;
             height: 100%;
@@ -133,5 +389,9 @@ const photos: Photo[] = await sanityClient.fetch(`
             content: " ";
             flex-grow: 1000000000;
         }
+    }
+
+    html {
+        scroll-behavior: smooth;
     }
 </style>
