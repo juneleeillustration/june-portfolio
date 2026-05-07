@@ -7,20 +7,20 @@ import smartypants from "smartypants";
 const fallbackName = "Astro Photo Grid";
 
 export interface Props {
-    title: string;
-    description: string;
-    image?: {
-        src: string;
-        alt: string;
-    };
-    siteName?: string;
+  title: string;
+  description: string;
+  image?: {
+    src: string;
+    alt: string;
+  };
+  siteName?: string;
 }
 
 const { title, description, image, siteName = fallbackName } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const pageTitle =
-    Astro.url.pathname === "/" ? siteName : `${title} · ${siteName}`;
+  Astro.url.pathname === "/" ? siteName : `${title} · ${siteName}`;
 ---
 
 <html lang="en">

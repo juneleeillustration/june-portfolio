@@ -1,11 +1,8 @@
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
-<<<<<<< HEAD
 import sanity from "@sanity/astro";
-import { defineConfig } from "astro/config";
-=======
 import tailwindcss from "@tailwindcss/vite";
->>>>>>> 85f10fd (Added left col, website title, sections, additional schema for section)
+import { defineConfig } from "astro/config";
 import "dotenv/config";
 
 const projectId = process.env.PUBLIC_SANITY_PROJECT_ID;
